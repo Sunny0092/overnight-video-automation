@@ -1,8 +1,8 @@
-# Overnight videos with code written in chat
+# Overnight videos from prompts left in chat
 
-Give ChatGPT/Codex your video prompt in this chat. It writes custom JavaScript, tests the animation, and saves the source and job in this repository. GitHub Actions then renders pending jobs at **1:37 AM India time**, using Canvas and FFmpeg to export H.264 MP4 files. Your computer can be off during the GitHub render.
+Give ChatGPT/Codex your video prompt in this chat at any time. Daytime messages only queue the creative brief. At **1:37 AM India time**, the scheduled task returns to the same chat, writes custom JavaScript, tests the animation, and saves the source and job in this repository. It then triggers GitHub Actions to render the MP4 with Canvas and FFmpeg, downloads the result, verifies it, and saves a permanent local copy for you.
 
-There is no Remotion dependency. The active workflow renders saved JavaScript only. It does not call Gemini or an OpenAI API. ChatGPT writes new code when you send a prompt here; it does not automatically write new code inside the overnight GitHub job.
+There is no Remotion dependency. Codex writes the scene during the overnight scheduled chat turn; the GitHub workflow renders saved JavaScript only and does not call Gemini or an OpenAI API. The computer must stay awake and online with Codex and its authenticated browser connection running for overnight coding, GitHub access, and downloading. GitHub runs the rendering on its own runner.
 
 ## Request a video
 
@@ -12,15 +12,17 @@ Tell ChatGPT/Codex what you want. You do not need to write or copy code yourself
 
 Useful details are the topic, language, duration, horizontal or vertical format, visual style, exact text, and any supplied assets. Sensible defaults can fill in missing details.
 
-ChatGPT/Codex saves a custom `.mjs` scene and a matching JSON job with a `code` path. Code generation, testing, and saving take place in the chat before the overnight render. The example job `demo` illustrates the interface. The earlier Gemini sample `ai-demo` is disabled.
+ChatGPT/Codex saves the prompt in a private local queue outside this public repository. It does not write or render the scene during daytime submission. At night it creates a custom `.mjs` scene and matching JSON job with a `code` path. The example job `demo` illustrates the interface. The earlier Gemini sample `ai-demo` is disabled.
 
 ## Run and download
 
-The schedule is **1:37 AM IST every day** (20:07 UTC on the previous day). It checks the repository for new or changed jobs. Successful jobs are skipped while unchanged, so the same video is not needlessly rendered every night.
+The Codex task **Create queued videos overnight** starts at **1:37 AM IST every day** in the original chat. It processes up to three pending prompts, publishes verified scenes, and dispatches this workflow after the code is ready. If a delayed wake occurs during the day, requests stay queued for the next night. An empty queue does not create example videos.
+
+The independent GitHub timer was removed to keep coding before rendering. Successful jobs are skipped while unchanged, and interrupted requests resume their recorded render run rather than dispatching duplicates. The user does not need to trigger the workflow manually.
 
 To render a saved job immediately, open **Actions → Overnight video render → Run workflow**. Leave **job** blank to process pending jobs, or choose its saved ID. Select **force** to render again even when unchanged.
 
-Open a completed run and download its **finished-videos** artifact. Artifacts contain MP4s, PNG posters, render manifests, and a queue report. They expire after **one day**; download videos you want to keep. MP4s use H.264, `yuv420p`, and fast-start metadata.
+The scheduled task downloads each completed **finished-videos** artifact, verifies the MP4, and saves it under the chat workspace's `outputs/videos/<request-id>` folder. It reports clickable finished video links in the chat. GitHub artifacts contain MP4s, PNG posters, render manifests, and a queue report and expire after **one day**; saved local copies do not expire. You can also download artifacts manually from a completed run. MP4s use H.264, `yuv420p`, and fast-start metadata.
 
 ## Saved job format
 
@@ -47,8 +49,8 @@ Typography, animated shapes, charts, original illustrations, and declared local 
 
 Saved scene code executes in a Docker container with no network, no API credentials, read-only source and root filesystem, and limits on memory, process count, and runtime. The workflow processes at most three pending jobs per run with a seven-minute budget per job. Rendering failures appear in the Actions report.
 
-Public standard GitHub-hosted runners have free compute; the repository's code and saved prompts are public. No paid runner or AI API was configured for the active render-only workflow. Storage limits still apply. GitHub scheduling can be delayed or skipped under load, and public schedules can be disabled after 60 days without repository activity. A new saved video job constitutes repository activity.
+Public standard GitHub-hosted runners have free compute; published scene code and job prompts are public. No paid runner or AI API was configured for the active workflow. The scheduled coding task uses the user's existing Codex allowance and requires this computer and app to remain available. Storage, account usage, scheduling, and access limits still apply. A task that cannot access the account preserves the queue and reports the actual blocker.
 
 The original Gemini generator remains in the source as an optional legacy mode, but the active workflow explicitly uses `VIDEO_CODE_MODE: authored`, has no prompt input, and does not pass the Gemini key. Its API secret is unnecessary for this mode. Never put API keys or sensitive material in public prompts or source files.
 
-Official references: [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule), [OpenAI code generation](https://developers.openai.com/api/docs/guides/code-generation).
+Official references: [OpenAI scheduled tasks and computer requirements](https://learn.chatgpt.com/docs/automations), [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [OpenAI code generation](https://developers.openai.com/api/docs/guides/code-generation).
