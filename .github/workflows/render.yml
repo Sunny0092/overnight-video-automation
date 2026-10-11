@@ -1,9 +1,8 @@
 name: Overnight video render
 
 on:
-  schedule:
-    # 20:07 UTC is 1:37 AM the following day in India.
-    - cron: '7 20 * * *'
+  # The scheduled Codex chat writes and verifies scenes first, then dispatches
+  # this workflow. A separate timer could run before the night's code is ready.
   workflow_dispatch:
     inputs:
       job:
