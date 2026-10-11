@@ -1,0 +1,16 @@
+{
+  "name": "overnight-video-automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Custom JavaScript canvas scenes encoded to MP4 with FFmpeg",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "render": "node src/render.mjs",
+    "validate": "node src/validate.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "0.1.80"
+  }
+}
