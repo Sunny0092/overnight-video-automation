@@ -1,90 +1,54 @@
-# Overnight videos from prompts
+# Overnight videos with code written in chat
 
-Give the automation a video prompt. Gemini writes a custom JavaScript animation, the JavaScript draws the frames, and FFmpeg exports a finished H.264 MP4. GitHub Actions runs the work on GitHub's computer, so your computer can be off.
+Give ChatGPT/Codex your video prompt in this chat. It writes custom JavaScript, tests the animation, and saves the source and job in this repository. GitHub Actions then renders pending jobs at **1:37 AM India time**, using Canvas and FFmpeg to export H.264 MP4 files. Your computer can be off during the GitHub render.
 
-There is no Remotion dependency. Each video gets its own JavaScript, rather than being forced into a slideshow template.
+There is no Remotion dependency. The active workflow renders saved JavaScript only. It does not call Gemini or an OpenAI API. ChatGPT writes new code when you send a prompt here; it does not automatically write new code inside the overnight GitHub job.
 
-## One-time setup
+## Request a video
 
-1. Finish GitHub signup in the browser and choose **GitHub Free**. Enter your password and verification codes directly on GitHub.
-2. Create a repository named `overnight-video-automation`. A public repository has free standard GitHub-hosted runner time; its code and committed prompts are visible to everyone. A private repository uses your account's included monthly minutes.
-3. Upload this folder's source files to the repository root. Include the hidden `.github/workflows/render.yml` file; without it, the Actions tab will not contain this workflow. Do not upload `node_modules`, `.env`, generated videos, or API keys.
-4. Create a free Gemini API project and key in [Google AI Studio](https://aistudio.google.com/api-keys). Keep the project on **Free Tier** and do not link billing. The default text model is `gemini-3.8-flash`. It writes code; it does not call a paid video-generation service.
-5. In the repository, open **Settings → Secrets and variables → Actions → New repository secret**. Name it `GEMINI_API_KEY`, paste the key, and save. Keep the key out of prompts, code, screenshots, and commit messages.
-6. Open **Actions → Overnight video render → Run workflow**. Run the included example first, or enter a video prompt in the manual prompt field. Download the video artifact after the run succeeds.
+Tell ChatGPT/Codex what you want. You do not need to write or copy code yourself. For example:
 
-The schedule is **1:37 AM India time every day**. The workflow uses 20:07 UTC, which is 1:37 AM IST on the following calendar day. It must be on the repository's default branch. GitHub can delay scheduled runs; public schedules are disabled after 60 days without repository activity. The manual Run workflow button remains available.
+> Write and queue a 15-second vertical video explaining how compound growth works. Use a dark navy background, turquoise curves, English text, and three clear scenes. End with Small steps. Big results. No audio or external images.
 
-The included `ai-demo` prompt creates a new variation each night. The authored `demo` is rendered once. Replace the sample prompt with your own creative brief when you are ready.
+Useful details are the topic, language, duration, horizontal or vertical format, visual style, exact text, and any supplied assets. Sensible defaults can fill in missing details.
 
-Account verification and the first API connection require the account owner. After setup, code generation and MP4 rendering happen automatically. You still supply the creative prompts, either through the workflow's prompt field or through saved jobs.
+ChatGPT/Codex saves a custom `.mjs` scene and a matching JSON job with a `code` path. Code generation, testing, and saving take place in the chat before the overnight render. The example job `demo` illustrates the interface. The earlier Gemini sample `ai-demo` is disabled.
 
-## Give it a prompt
+## Run and download
 
-Use **Run workflow → prompt** for an immediate video. For example:
+The schedule is **1:37 AM IST every day** (20:07 UTC on the previous day). It checks the repository for new or changed jobs. Successful jobs are skipped while unchanged, so the same video is not needlessly rendered every night.
 
-> Make a 15-second animated explainer about compound growth. Use a dark navy background, turquoise curves, large readable text, and three clear beats: start small, stay consistent, watch it grow. Animate the graph smoothly. No external images. End with “Small steps. Big results.”
+To render a saved job immediately, open **Actions → Overnight video render → Run workflow**. Leave **job** blank to process pending jobs, or choose its saved ID. Select **force** to render again even when unchanged.
 
-The dimensions, duration, and frame rate in the job settings determine the export. To queue a video for the overnight run, save a JSON job in `jobs/` with an ID and prompt, and omit `code`:
+Open a completed run and download its **finished-videos** artifact. Artifacts contain MP4s, PNG posters, render manifests, and a queue report. They expire after **one day**; download videos you want to keep. MP4s use H.264, `yuv420p`, and fast-start metadata.
+
+## Saved job format
 
 ```json
 {
   "id": "compound-growth",
   "enabled": true,
-  "prompt": "Make a 15-second animated explainer about compound growth, with navy and turquoise colors and a smoothly animated graph.",
-  "width": 1280,
-  "height": 720,
+  "prompt": "A 15-second animated explainer about compound growth.",
+  "code": "scenes/compound-growth.mjs",
+  "width": 1080,
+  "height": 1920,
   "fps": 24,
   "duration": 15
 }
 ```
 
-For vertical video, use `width: 1080` and `height: 1920`. For a fresh version of the same prompt each night, add `"repeat": "daily"`. Ordinary jobs are rendered once and are skipped while their content remains unchanged. Disable a saved job with `"enabled": false`. The workflow processes up to three pending jobs per run to bound compute and storage use.
+The `prompt` records the creative brief. The active workflow requires an existing `code` file. It rejects enabled prompt-only jobs rather than silently sending them to another AI. Ordinary jobs render once; adding `"repeat": "daily"` rerenders the saved scene daily, without generating new code. Disable a job with `"enabled": false`.
 
-You can also give Codex a prompt and ask it to save a queued job through GitHub. You do not need to write JavaScript yourself.
+A scene exports `render(ctx, frameInfo)`. `ctx` is a Canvas 2D context; frame fields include `t`, `time`, `frame`, `fps`, `duration`, `progress`, `width`, `height`, `prompt`, and prepared assets. An optional asynchronous `prepare` export loads local assets once. See `examples/demo.mjs`.
 
-## What you download
+Typography, animated shapes, charts, original illustrations, and declared local image assets are supported. Local audio can be included. Without an audio asset the video is silent. Photorealistic footage, narration, and licensed music are not created automatically by this renderer.
 
-The Actions artifact contains the MP4, a PNG poster, a render manifest, a queue report, and the custom code used for generated videos. Artifacts are retained for **one day**; download them the next morning. MP4s use H.264 and `yuv420p` with fast-start metadata for common players and social platforms.
+## Isolation and limits
 
-This pipeline can draw typography, charts, animated shapes, illustrations, and compositions using local image assets. Local audio can be mixed into the export. Without an audio asset, the video is silent. It does not create photorealistic footage, narrations, or licensed music by itself.
+Saved scene code executes in a Docker container with no network, no API credentials, read-only source and root filesystem, and limits on memory, process count, and runtime. The workflow processes at most three pending jobs per run with a seven-minute budget per job. Rendering failures appear in the Actions report.
 
-## Custom JavaScript contract
+Public standard GitHub-hosted runners have free compute; the repository's code and saved prompts are public. No paid runner or AI API was configured for the active render-only workflow. Storage limits still apply. GitHub scheduling can be delayed or skipped under load, and public schedules can be disabled after 60 days without repository activity. A new saved video job constitutes repository activity.
 
-A hand-written or AI-authored `.mjs` module can be committed and referenced by a job's `code` field. It must export:
+The original Gemini generator remains in the source as an optional legacy mode, but the active workflow explicitly uses `VIDEO_CODE_MODE: authored`, has no prompt input, and does not pass the Gemini key. Its API secret is unnecessary for this mode. Never put API keys or sensitive material in public prompts or source files.
 
-```js
-export function render(ctx, { time, width, height, progress }) {
-  ctx.fillStyle = '#08111f';
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#58e0c5';
-  ctx.font = 'bold 64px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('Your idea, in motion', width / 2, height / 2);
-}
-```
-
-`ctx` is a Canvas 2D context. The frame information includes `t` and `time` in seconds, `frame`, `fps`, `duration`, `progress`, `width`, `height`, `prompt`, and prepared assets. An optional asynchronous `prepare` export can load local assets once. See `examples/demo.mjs` and the renderer source for the exact interface.
-
-Generated code is syntax-checked before use. Its execution takes place in a separate container with no network, no API credentials, read-only source files, and limits on memory, process count, and runtime. The AI credential is available only to the code-generation process. Generation or rendering failures appear in the Actions report; a failed run is not presented as a finished video.
-
-If generated code fails during rendering, the automation sends the error back to the AI and attempts one repair. It stops after that attempt if the scene still fails.
-
-## Free limits and costs
-
-GitHub currently provides free standard hosted runner time for public repositories. GitHub Free includes **2,000 private-repository minutes per month** and **500 MB of artifact storage**. Storage is shared with other relevant account usage, so download promptly and keep retention short. No larger paid runners are configured here.
-
-Gemini's free tier has project-specific rate limits and availability. Free-tier prompts and responses may be used to improve Google's products. Keep the Google project on Free Tier. This code cannot determine whether the key belongs to a billed project, and never switches to a paid model if a request is rejected.
-
-GitHub Actions scheduling is a best-effort service. A render can fail because of an account restriction, exhausted quota, a model error, an invalid prompt-generated program, or a missing asset. Check the run status when downloading.
-
-Official references checked October 11, 2026:
-
-- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-- [GitHub Actions limits](https://docs.github.com/en/actions/reference/limits)
-- [Scheduling events and inactivity](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
-- [Gemini free pricing](https://ai.google.dev/gemini-api/docs/pricing)
-- [Gemini quotas](https://ai.google.dev/gemini-api/docs/rate-limits)
-- [Gemini API keys](https://ai.google.dev/gemini-api/docs/api-key)
-- [Gemini current API quickstart](https://ai.google.dev/gemini-api/docs/get-started)
-- [GitHub Models retirement](https://docs.github.com/en/github-models)
+Official references: [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule), [OpenAI code generation](https://developers.openai.com/api/docs/guides/code-generation).
