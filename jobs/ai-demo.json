@@ -1,0 +1,10 @@
+{
+  "id": "ai-demo",
+  "enabled": true,
+  "repeat": "daily",
+  "prompt": "Create a polished 12-second animated explainer called Your ideas, in motion. Use a dark navy background, bright turquoise and warm cream accents, large readable typography, fluid motion, and an original three-beat composition: Your prompt, Custom JavaScript, Finished MP4. Make small orbiting geometric shapes connect the three beats. Finish on Create while you sleep. Use no external assets and no audio. Draw everything with Canvas 2D.",
+  "width": 1280,
+  "height": 720,
+  "fps": 24,
+  "duration": 12
+}
