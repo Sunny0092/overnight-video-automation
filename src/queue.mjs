@@ -71,7 +71,9 @@ async function manualJob(root, prompt) {
   return relative;
 }
 
-export async function inspectQueue({ root = defaultRepoRoot(), jobId = '', prompt = '', force = false, now = new Date() } = {}) {
+export async function inspectQueue({ root = defaultRepoRoot(), jobId = '', prompt = '', force = false, now = new Date(), codeMode = process.env.VIDEO_CODE_MODE || 'authored' } = {}) {
+  if (!['authored', 'generate'].includes(codeMode)) throw new Error('VIDEO_CODE_MODE must be authored or generate.');
+  if (codeMode === 'authored' && prompt) throw new Error('Authored mode does not accept manual prompts. Ask ChatGPT to write and commit a JavaScript scene first.');
   root = await fs.realpath(root);
   if (jobId && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(jobId)) throw new Error('Select a job by its id, using lowercase letters, numbers, hyphens or underscores.');
   if (prompt && jobId) throw new Error('Use either a manual prompt or an existing job id.');
@@ -95,6 +97,7 @@ export async function inspectQueue({ root = defaultRepoRoot(), jobId = '', promp
       ids.add(loaded.job.id);
       if (jobId && loaded.job.id !== jobId) continue;
       if (!loaded.job.enabled) { items.push({ file, id: loaded.job.id, status: 'disabled' }); continue; }
+      if (codeMode === 'authored' && !loaded.codePath) throw new Error(`Enabled job ${loaded.job.id} requires a committed code file in authored mode. Ask ChatGPT to write the JavaScript scene first.`);
       const fingerprint = await fingerprintJob(loaded, { now });
       const unchanged = !force && state.rendered[loaded.job.id]?.fingerprint === fingerprint;
       items.push({ file, id: loaded.job.id, status: unchanged ? 'unchanged' : 'pending', fingerprint, loaded });
@@ -105,7 +108,7 @@ export async function inspectQueue({ root = defaultRepoRoot(), jobId = '', promp
   if (jobId && !ids.has(jobId)) items.push({ id: jobId, status: 'invalid', error: `No job has id ${jobId}.` });
   let selected = 0;
   for (const item of items) if (item.status === 'pending' && ++selected > MAX_JOBS) item.status = 'deferred';
-  return { root, stateFile, state, items, now };
+  return { root, stateFile, state, items, now, codeMode };
 }
 
 function command(command, args, { timeoutMs, prefix = '', env = process.env } = {}) {
@@ -193,8 +196,8 @@ export async function runQueue(options = {}) {
   await fs.mkdir(outputRoot, { recursive: true });
   const results = [];
   let changed = false;
-  const apiKey = options.apiKey ?? process.env.GEMINI_API_KEY;
-  const generate = options.generate ?? generateCode;
+  const apiKey = plan.codeMode === 'generate' ? options.apiKey ?? process.env.GEMINI_API_KEY : undefined;
+  const generate = plan.codeMode === 'generate' ? options.generate ?? generateCode : undefined;
   for (const item of plan.items) {
     if (item.status !== 'pending') { results.push({ id: item.id, file: item.file, status: item.status, error: item.error }); continue; }
     const { loaded } = item;
@@ -219,6 +222,7 @@ export async function runQueue(options = {}) {
       await fs.chmod(output, 0o777);
       await stageJob(loaded, staging);
       if (generated) {
+        if (plan.codeMode === 'authored') throw new Error(`Enabled job ${job.id} requires a committed code file in authored mode.`);
         if (options.localTrusted && !options.render) throw new Error('--local-trusted may only run authored code; AI code requires Docker.');
         code = await generateWithinBudget({ ...job, renderDate: job.repeat === 'daily' ? indiaDate(plan.now) : undefined });
         job.code = 'generated/scene.mjs';
