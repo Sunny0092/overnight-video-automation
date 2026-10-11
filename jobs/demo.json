@@ -1,0 +1,10 @@
+{
+  "id": "demo",
+  "enabled": true,
+  "prompt": "Make a polished 12 second navy-and-coral explainer. Animate a title, compare three bars, and end with a Finished MP4 card. Use original canvas graphics and no Remotion.",
+  "code": "examples/demo.mjs",
+  "width": 1280,
+  "height": 720,
+  "fps": 24,
+  "duration": 12
+}
