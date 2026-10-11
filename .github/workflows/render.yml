@@ -10,12 +10,8 @@ on:
         description: 'Existing job id (blank: process queued jobs)'
         type: string
         default: ''
-      prompt:
-        description: 'Or enter a new video prompt (12-second 720p video)'
-        type: string
-        default: ''
       force:
-        description: 'Render even if this job or prompt already completed'
+        description: 'Render even if this job already completed'
         type: boolean
         default: false
 
@@ -30,6 +26,8 @@ jobs:
   render:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      VIDEO_CODE_MODE: authored
     steps:
       - name: Check out video jobs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -53,7 +51,6 @@ jobs:
         id: plan
         env:
           INPUT_JOB: ${{ inputs.job }}
-          INPUT_PROMPT: ${{ inputs.prompt }}
           INPUT_FORCE: ${{ inputs.force }}
         run: node src/queue.mjs --plan
 
@@ -61,13 +58,11 @@ jobs:
         if: steps.plan.outputs.pending != '0'
         run: docker build --tag overnight-video:local .
 
-      - name: Generate custom code and render up to three videos
+      - name: Render up to three authored JavaScript videos
         id: render
         if: steps.plan.outputs.work_required == 'true'
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           INPUT_JOB: ${{ inputs.job }}
-          INPUT_PROMPT: ${{ inputs.prompt }}
           INPUT_FORCE: ${{ inputs.force }}
         run: node src/queue.mjs
 
@@ -79,7 +74,7 @@ jobs:
           path: .state/rendered.json
           key: video-state-v1-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Upload finished videos and generated source
+      - name: Upload finished videos and render reports
         if: always() && steps.plan.outputs.work_required == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
