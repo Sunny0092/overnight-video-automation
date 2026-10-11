@@ -48,10 +48,10 @@ test('daily jobs become pending on the next date in India', async t => {
   assert.equal((await inspectQueue({ root, now: new Date('2026-10-12T20:07:00Z') })).items[0].status, 'pending');
 });
 
-test('prompt jobs generate, repair once, stage declared files and redact errors', async t => {
+test('explicit generation mode generates, repairs once, stages declared files and redacts errors', async t => {
   const root = await fixture(t, [{ id: 'ai', code: undefined }]);
   let generated = 0;
-  const outcome = await runQueue({ root, apiKey: 'private-test-key', generate: async job => { generated++; if (generated === 2) assert.ok(job.repairError.includes('[redacted]')); return 'export function render() {}'; }, render: async args => {
+  const outcome = await runQueue({ root, codeMode: 'generate', apiKey: 'private-test-key', generate: async job => { generated++; if (generated === 2) assert.ok(job.repairError.includes('[redacted]')); return 'export function render() {}'; }, render: async args => {
     const staged = JSON.parse(await fs.readFile(path.join(args.staging, 'jobs/job.json'), 'utf8'));
     assert.equal(staged.code, 'generated/scene.mjs');
     assert.equal(await fs.stat(path.join(args.staging, 'generated/scene.mjs')).then(s => s.isFile()), true);
@@ -62,6 +62,55 @@ test('prompt jobs generate, repair once, stage declared files and redact errors'
   assert.equal(outcome.report.results[0].attempts, 2);
   assert.equal(outcome.failed, false);
   assert.ok((await fs.readFile(path.join(root, 'out/ai/ai-scene.mjs'), 'utf8')).includes('render'));
+});
+
+test('authored mode rejects enabled prompt-only jobs in planning and before injected rendering', async t => {
+  const root = await fixture(t, [{ id: 'ai', code: undefined }, { id: 'disabled-ai', code: undefined, enabled: false }]);
+  const plan = await inspectQueue({ root, codeMode: 'authored' });
+  assert.deepEqual(plan.items.map(item => item.status), ['invalid', 'disabled']);
+  assert.match(plan.items[0].error, /requires a committed code file in authored mode/);
+  let generated = 0;
+  let rendered = 0;
+  const outcome = await runQueue({ root, codeMode: 'authored', generate: async () => { generated++; }, render: async () => { rendered++; } });
+  assert.equal(outcome.failed, true);
+  assert.deepEqual(outcome.report.results.map(item => item.status), ['invalid', 'disabled']);
+  assert.equal(generated, 0);
+  assert.equal(rendered, 0);
+  assert.equal(outcome.stateChanged, false);
+});
+
+test('authored mode rejects manual prompts before creating or rendering a manual job', async t => {
+  const root = await fixture(t, []);
+  const options = { root, codeMode: 'authored', prompt: 'Make a new scene.', generate: () => assert.fail('generation must not run'), render: () => assert.fail('rendering must not run') };
+  await assert.rejects(inspectQueue(options), /Authored mode does not accept manual prompts/);
+  await assert.rejects(runQueue(options), /Authored mode does not accept manual prompts/);
+  await assert.rejects(fs.stat(path.join(root, '.state/manual/job.json')), { code: 'ENOENT' });
+});
+
+test('authored code renders without credentials or calling generation, including after render failure', async t => {
+  const root = await fixture(t, [{ id: 'a' }, { id: 'b' }]);
+  const outcome = await runQueue({ root, codeMode: 'authored', generate: () => assert.fail('generation must not run'), render: async args => {
+    assert.equal(args.job.code, 'examples/scene.mjs');
+    assert.equal(await fs.readFile(path.join(args.staging, args.job.code), 'utf8'), 'export function render() {}');
+    if (args.job.id === 'b') throw new Error('authored scene failed');
+    await fakeRender(args);
+  } });
+  assert.deepEqual(outcome.report.results.map(item => item.status), ['completed', 'failed']);
+  assert.equal(outcome.report.results[0].generated, false);
+  assert.equal(outcome.report.results[0].attempts, 1);
+  assert.equal(outcome.report.results[1].attempts, 1);
+  assert.equal(outcome.failed, true);
+});
+
+test('code mode derives from the environment and rejects unsupported modes', async t => {
+  const root = await fixture(t, [{ id: 'ai', code: undefined }]);
+  const previous = process.env.VIDEO_CODE_MODE;
+  t.after(() => { if (previous === undefined) delete process.env.VIDEO_CODE_MODE; else process.env.VIDEO_CODE_MODE = previous; });
+  process.env.VIDEO_CODE_MODE = 'authored';
+  assert.equal((await inspectQueue({ root })).items[0].status, 'invalid');
+  process.env.VIDEO_CODE_MODE = 'generate';
+  assert.equal((await inspectQueue({ root })).items[0].status, 'pending');
+  await assert.rejects(inspectQueue({ root, codeMode: 'unsupported' }), /VIDEO_CODE_MODE must be authored or generate/);
 });
 
 test('Docker arguments isolate scene code and never forward host credentials', () => {
